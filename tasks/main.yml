@@ -1,0 +1,55 @@
+---
+- name: Install HAProxy
+  package:
+    name: haproxy
+    state: present
+  notify:
+    - Restart haproxy
+  when: not haproxy_install_from_ppa
+
+- name: Install needed packages
+  package:
+    name: software-properties-common
+    state: present
+  when: haproxy_install_from_ppa
+
+- name: Install HAProxy ppa
+  apt_repository:
+    repo: "ppa:vbernat/haproxy-{{ haproxy_ppa_version }}"
+    state: present
+  when: haproxy_install_from_ppa
+
+- name: Install HAProxy
+  package:
+    name: "haproxy={{ haproxy_ppa_version }}.*"
+    state: present
+  notify:
+    - Restart haproxy
+  when: haproxy_install_from_ppa
+
+- name: Create directory to override default HAProxy service limits
+  file:
+    state: directory
+    path: /etc/systemd/system/haproxy.service.d
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Ensure number of openfiles and process limits
+  copy:
+    src: systemd_override.conf
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+  notify:
+    - Reload haproxy
+
+- name: Reload configs systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Ensure HAProxy config
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: 0644
+  notify:
+    - Reload haproxy
